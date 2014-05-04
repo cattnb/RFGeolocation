@@ -1,0 +1,27 @@
+iface wlan0 inet manual
+wpa-roam /etc/wpa_supplicant.conf
+iface default inet static
+	address 10.1.2.20
+	netmask 255.255.255.0
+	network 10.1.2.0
+	gateway 10.1.2.1
+
+auto lo
+iface lo inet loopback
+
+auto eth0
+iface eth0 inet static
+	address 192.168.10.1
+	netmask 255.255.255.0
+	gateway 192.168.10.0
+
+
+
+	
+
+# WiFi Example
+#auto wlan0
+#iface wlan0 inet dhcp
+# wpa-ssid "essid"
+# wpa-psk "password"
+#wireless-essid beagle
