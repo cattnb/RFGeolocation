@@ -32,8 +32,6 @@
 #define sensor2 2
 
 
-//int data_request1 = 0;
-//int compass_calibrate = 0;
 int sv1[6]={0,0,0,0,0,0};                 // servo positions: 0 = Not Used
 //int lmspeed1=0,rmspeed1=0;                                 // left and right motor speed from -255 to +255 (negative value = reverse)
 unsigned int lmbrake,rmbrake;                                // left and right motor brake (non zero value = brake)
@@ -45,8 +43,6 @@ unsigned int i2caddr=7;                                      // default I2C addr
 unsigned int i2cfreq=0;                                      // I2C clock frequency. Default is 0=100kHz. Set to 1 for 400kHz
 float voltage = 0;
 
-
-int break_case = 0;
 int receive[16] = {0};
 
 pthread_mutex_t lock;
@@ -107,33 +103,28 @@ void setup(){
 	socketSetup();
 }
 
-void MasterSend(int sock, unsigned int sbyte, unsigned int pfreq, int lspeed, unsigned int lbrake, int rspeed, unsigned int rbrake, int sv_0, int sv_1, int sv_2, int sv_3, int sv_4, int sv_5, unsigned int dev,int sens,int lowbat, unsigned int i2caddr,unsigned int i2cfreq, int data_request, int compass_calibrate, int destination){
+void MasterSend(int sock, unsigned int sbyte, unsigned int pfreq, int lspeed, unsigned int lbrake, int rspeed, unsigned int rbrake, int sv_0, int sv_1, int sv_2, int sv_3, int sv_4, int sv_5, unsigned int dev,int sens,int lowbat, unsigned int i2caddr,unsigned int i2cfreq, int data_request, int compass_calibrate){
 	int n;
 	
-	__u8 send_data[30]={sbyte,pfreq,((lspeed>>8)&0xFF), (lspeed&0xFF), lbrake, ((rspeed>>8)&0xFF), (rspeed&0xFF), rbrake, ((sv_0>>8)&0xFF), (sv_0&0xFF), ((sv_1>>8)&0xFF), (sv_1&0xFF),((sv_2>>8)&0xFF), (sv_2&0xFF),((sv_3>>8)&0xFF), (sv_3&0xFF),((sv_4>>8)&0xFF), (sv_4&0xFF),((sv_5>>8)&0xFF), (sv_5&0xFF),dev,((sens>>8)&0xFF), (sens&0xFF),((lowbat>>8)&0xFF), (lowbat&0xFF),i2caddr,i2cfreq,data_request,compass_calibrate,destination};
+	__u8 send_data[30]={sbyte,pfreq,((lspeed>>8)&0xFF), (lspeed&0xFF), lbrake, ((rspeed>>8)&0xFF), (rspeed&0xFF), rbrake, ((sv_0>>8)&0xFF), (sv_0&0xFF), ((sv_1>>8)&0xFF), (sv_1&0xFF),((sv_2>>8)&0xFF), (sv_2&0xFF),((sv_3>>8)&0xFF), (sv_3&0xFF),((sv_4>>8)&0xFF), (sv_4&0xFF),((sv_5>>8)&0xFF), (sv_5&0xFF),dev,((sens>>8)&0xFF), (sens&0xFF),((lowbat>>8)&0xFF), (lowbat&0xFF),i2caddr,i2cfreq,data_request,compass_calibrate};
 	
 	n = write(sock,send_data,sizeof(send_data));
 	if(n<=0) {
 		error("ERROR reading from socket\n");
-		break_case = -1;
-		//socketSetup();
 	}
-	printf("break_case = %i\n",break_case);
 	return;
 }
 void MasterReceive(int sock){
 	int n;
 	if(n = read(sock,receive,sizeof(receive))<=0){
 		error("ERROR writing to socket\n");
-		break_case = -1;
-	}
+		}
 	/*
 	for(int i =0;i<7;i++){
 		printf("%2.4f ",receive[i]);
 	}
 	printf("\n\n");
 	*/
-	printf("break_case = %i\n",break_case);
   	return;
 }
 
@@ -145,13 +136,14 @@ void print_ip(int ip){
 	bytes[3] = (ip >> 24) & 0xFF;	
 	printf("%d.%d.%d.%d\n", bytes[0], bytes[1], bytes[2], bytes[3]);        
 }
+
 void *connection_handler(void *socket_desc){
 	int fd = -1;	
 	int lmspeed = 0;
 	int rmspeed = 0;
 	int data_request = 0;
 	int compass_calibrate = 0;
-	int location = 0;
+	char device[];
 	int location_string = {0};
 	//Get the socket descriptor
 	int sock = *(int*)socket_desc;
@@ -160,15 +152,18 @@ void *connection_handler(void *socket_desc){
 	printf("New connection! Sock = %i\n",sock);
 	if(service_count==0){
 		fd = xbox1;
-		location = sensor1;
+		device = "Transmitter";
+		//location = sensor1;
 	}
 	else if(service_count == 1){
 		fd = xbox2;
-		location = transmitter;
+		device = "Receiver 1";
+		//location = transmitter;
 	}
 	else if(service_count == 2){
 		fd = xbox3;
-		location = sensor2;
+		device = "Receiver 2";
+		//location = sensor2;
 	}
 	else printf("service_count error");
 	pthread_mutex_lock(&lock);
@@ -238,11 +233,9 @@ void *connection_handler(void *socket_desc){
 				float RSS = 0;
 				data_request = 1;
 				for(int i=0;i<31;i++){
-					MasterSend(sock,STARTBYTE,pwmf,lmspeed,lmbrake,rmspeed,rmbrake,sv1[0],sv1[1],sv1[2],sv1[3],sv1[4],sv1[5],devibrate,sensitivity,lowbat,i2caddr,i2cfreq,data_request,compass_calibrate,location);
+					MasterSend(sock,STARTBYTE,pwmf,lmspeed,lmbrake,rmspeed,rmbrake,sv1[0],sv1[1],sv1[2],sv1[3],sv1[4],sv1[5],devibrate,sensitivity,lowbat,i2caddr,i2cfreq,data_request,compass_calibrate);
 					sleep(0.5);
-					if(break_case<0) break;	
 					MasterReceive(sock);
-					if(break_case<0) break;	
 					gpslatint[i] = receive[0];
 					gpslatdec[i] = receive[1];
 					gpslongint[i] = receive[2];
@@ -260,26 +253,23 @@ void *connection_handler(void *socket_desc){
 					heading = headingint[i]+(float) headingdec[i]/100000 + heading;
 					RSS = RSSint[i]+(float) RSSdec[i]/10000000 + RSS;
 				}
-				printf("Average lat: %3.6f, Average long: %3.6f, Average heading: %3.2f Average RSS: %3.10f Time: %i:%i:%i\n",gpslat/30,gpslong/30,heading/30,RSS/30,receive[4],receive[5],receive[6]);
+				printf("%s Average lat: %3.6f, Average long: %3.6f, Average heading: %3.2f Average RSS: %3.10f Time: %i:%i:%i\n",device,gpslat/30,gpslong/30,heading/30,RSS/30,receive[4],receive[5],receive[6]);
 				//printf("Data from Sensor %i Y: %i.%i X: %i.%i Time: %i:%i:%i Speed: %i.%i Heading: %i.%i Heading: %i.%i RSS = %i.%i\n\r",receive[13],receive[0], receive[1], receive[2],receive[3],receive[4],receive[5],receive[6],receive[7], receive[8], receive[9],receive[10],receive[11],receive[12], receive[14],receive[15]);
 				data_request = 0;
 			}
 			//calibrate with b button
 			if(xbox.type==1 && xbox.number==1 && xbox.value ==1){
 				compass_calibrate = 1;
-				MasterSend(sock,STARTBYTE,pwmf,lmspeed,lmbrake,rmspeed,rmbrake,sv1[0],sv1[1],sv1[2],sv1[3],sv1[4],sv1[5],devibrate,sensitivity,lowbat,i2caddr,i2cfreq,data_request,compass_calibrate,location);
-				if(break_case<0) break;	
+				MasterSend(sock,STARTBYTE,pwmf,lmspeed,lmbrake,rmspeed,rmbrake,sv1[0],sv1[1],sv1[2],sv1[3],sv1[4],sv1[5],devibrate,sensitivity,lowbat,i2caddr,i2cfreq,data_request,compass_calibrate);
 				MasterReceive(sock);
-				if(break_case<0) break;
 				compass_calibrate = 0;
 				
 			}			
 		}
 		
-		MasterSend(sock,STARTBYTE,pwmf,lmspeed,lmbrake,rmspeed,rmbrake,sv1[0],sv1[1],sv1[2],sv1[3],sv1[4],sv1[5],devibrate,sensitivity,lowbat,i2caddr,i2cfreq,data_request,compass_calibrate,location);
-		if(break_case<0) break;	
+		MasterSend(sock,STARTBYTE,pwmf,lmspeed,lmbrake,rmspeed,rmbrake,sv1[0],sv1[1],sv1[2],sv1[3],sv1[4],sv1[5],devibrate,sensitivity,lowbat,i2caddr,i2cfreq,data_request,compass_calibrate);
+	
 		MasterReceive(sock);
-		if(break_case<0) break;	
 			
 	}
 	//shutdown(sock,SHUT_WR);
